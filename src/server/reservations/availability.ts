@@ -13,7 +13,7 @@ interface AvailabilityCheckInput extends AvailabilityInput {
 }
 
 export async function getAvailableQuantity(input: AvailabilityInput): Promise<number> {
-  if (input.endAt <= input.startAt) {
+  if (input.startAt >= input.endAt) {
     throw new DomainError("End time must be after start time.", 400, "INVALID_INTERVAL");
   }
 
@@ -35,8 +35,8 @@ export async function getAvailableQuantity(input: AvailabilityInput): Promise<nu
     where: {
       locationId: input.locationId,
       status: "CONFIRMED",
-      startAt: { lte: input.endAt },
-      endAt: { gte: input.startAt },
+      startAt: { lt: input.endAt },
+      endAt: { gt: input.startAt },
       items: { some: { equipmentId: input.equipmentId } },
     },
     select: {
