@@ -1,7 +1,52 @@
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { Box, Button, Card, CardContent, Chip, Divider, Stack, Typography } from "@mui/material";
+import { Box, Button, Stack, Typography } from "@mui/material";
+import { prisma } from '@/lib/prisma'
+import CreateReservationForm from '@/features/reservations/create/form'
 
-export default function NewReservationPage() {
+interface ReservationFormValues {
+  id: string,
+  name: string,
+  totalQuantity: number,
+  locationName: string,
+  locationId: string,
+}
+
+const getLocationsAndEquipments = async () => {
+  const equipmentsAndLocations = await prisma.equipment.findMany({
+    include: { location: true },
+  })
+
+  const locationNamesById: Record<string, string> = {}
+
+  const equipmentsByLocation: Record<string, Array<ReservationFormValues>> = equipmentsAndLocations.reduce((map, item) => {
+    if (!locationNamesById[item.locationId]) {
+      locationNamesById[item.locationId] = item.location?.name || item.locationId
+    }
+
+    if (!map[item.locationId]) {
+      map[item.locationId] = []
+    }
+
+    map[item.locationId].push({
+      id: item.id,
+      name: item.name,
+      totalQuantity: item.totalQuantity,
+      locationName: item.location?.name || '',
+      locationId: item.locationId,
+    })
+
+    return map
+  }, {} as Record<string, Array<ReservationFormValues>>)
+
+  return {
+    locationNamesById,
+    equipmentsByLocation,
+  }
+}
+
+export default async function NewReservationPage() {
+  const { locationNamesById, equipmentsByLocation } = await getLocationsAndEquipments();
+
   return (
     <Stack spacing={3}>
       <Box>
@@ -11,38 +56,12 @@ export default function NewReservationPage() {
         <Typography component="h1" variant="h1" gutterBottom>
           New Reservation
         </Typography>
-        <Typography color="text.secondary">
-          This route is the starting point for Ticket 2 of the assessment.
-        </Typography>
       </Box>
 
-      <Card>
-        <CardContent>
-          <Stack spacing={2.5}>
-            <Stack
-              direction="row"
-              spacing={1}
-              useFlexGap
-              sx={{ alignItems: "center", flexWrap: "wrap" }}
-            >
-              <Chip label="Candidate task" color="secondary" size="small" />
-              <Typography component="h2" variant="h2">
-                Implement Create Reservation
-              </Typography>
-            </Stack>
-            <Divider />
-            <Typography>
-              Build a form for location, start and end date/time, one or more equipment items with
-              quantities, and Draft or Confirmed status.
-            </Typography>
-            <Typography color="text.secondary">
-              Use the existing note editor for the project&apos;s React Hook Form, Zod, API, domain-error,
-              and refresh conventions. The README contains the complete acceptance rules.
-            </Typography>
-            {/* TODO(candidate): Implement the Create Reservation form. */}
-          </Stack>
-        </CardContent>
-      </Card>
+      <CreateReservationForm
+        locationNameById={locationNamesById}
+        equipmentsByLocation={equipmentsByLocation}
+      />
     </Stack>
   );
 }

@@ -3,68 +3,109 @@ import { prisma } from "@/lib/prisma";
 
 interface AvailabilityInput {
   locationId: string;
-  equipmentId: string;
+  equipments: Array<{
+    id: string;
+    quantity: number;
+  }>;
   startAt: Date;
   endAt: Date;
 }
 
-interface AvailabilityCheckInput extends AvailabilityInput {
-  requestedQuantity: number;
+interface AvailableQuantity {
+  id: string;
+  availableQuantity: number;
 }
 
-export async function getAvailableQuantity(input: AvailabilityInput): Promise<number> {
+interface AvailableQuantityWithAvailability extends AvailableQuantity {
+  available: boolean;
+}
+
+export async function getAvailableQuantity(
+  input: AvailabilityInput,
+): Promise<Array<AvailableQuantity>> {
   if (input.startAt >= input.endAt) {
     throw new DomainError("End time must be after start time.", 400, "INVALID_INTERVAL");
   }
 
-  const equipment = await prisma.equipment.findFirst({
-    where: { id: input.equipmentId, locationId: input.locationId },
-    select: { totalQuantity: true },
+  const equipmentIds = input.equipments.map((equipment) => equipment.id);
+
+  const equipmentQuantities = await prisma.equipment.findMany({
+    where: { id: { in: equipmentIds }, locationId: input.locationId },
+    select: { totalQuantity: true, id: true },
+    take: input.equipments.length,
   });
 
-  if (!equipment) {
+  if (equipmentQuantities.length < input.equipments.length) {
     throw new DomainError(
-      "Equipment was not found at the selected location.",
+      "Some equipment was not found at the selected location.",
       404,
       "EQUIPMENT_NOT_FOUND",
     );
   }
 
-  // Availability behavior is part of the candidate challenge.
-  const reservations = await prisma.reservation.findMany({
+  const reservations = await prisma.reservationItem.groupBy({
     where: {
-      locationId: input.locationId,
-      status: "CONFIRMED",
-      startAt: { lt: input.endAt },
-      endAt: { gt: input.startAt },
-      items: { some: { equipmentId: input.equipmentId } },
-    },
-    select: {
-      items: {
-        where: { equipmentId: input.equipmentId },
-        select: { quantity: true },
+      reservation: {
+        locationId: input.locationId,
+        status: "CONFIRMED",
+        startAt: { lt: input.endAt },
+        endAt: { gt: input.startAt },
       },
+      equipmentId: { in: equipmentIds },
+    },
+    by: ["equipmentId"],
+    _sum: {
+      quantity: true,
     },
   });
 
-  const reservedQuantity = reservations.reduce(
-    (sum, reservation) => sum + reservation.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
-    0,
+  const reservedEquipmentMap: Record<string, number> = reservations.reduce(
+    (map, reservation) => ({
+      ...map,
+      [reservation.equipmentId]: reservation?._sum?.quantity || 0,
+    }),
+    {},
   );
 
-  return Math.max(0, equipment.totalQuantity - reservedQuantity);
+  return equipmentQuantities.map((equipment) => ({
+    id: equipment.id,
+    availableQuantity: Math.max(
+      0,
+      equipment.totalQuantity - (reservedEquipmentMap[equipment.id] || 0),
+    ),
+  }));
 }
 
 export async function checkAvailability(
-  input: AvailabilityCheckInput,
-): Promise<{ available: boolean; availableQuantity: number }> {
-  if (!Number.isInteger(input.requestedQuantity) || input.requestedQuantity <= 0) {
-    throw new DomainError("Quantity must be a positive whole number.", 400, "INVALID_QUANTITY");
+  input: AvailabilityInput,
+): Promise<Array<AvailableQuantityWithAvailability>> {
+  const requestedQuantityByEquipment: Record<string, number> = {};
+
+  if (input.equipments.length === 0) {
+    throw new DomainError("At least one equipment item must be provided.", 400, "NO_EQUIPMENT");
   }
 
-  const availableQuantity = await getAvailableQuantity(input);
-  return {
-    available: input.requestedQuantity <= availableQuantity,
-    availableQuantity,
-  };
+  for (const equipment of input.equipments) {
+    if (!Number.isInteger(equipment.quantity) || equipment.quantity <= 0) {
+      throw new DomainError("Quantity must be a positive whole number.", 400, "INVALID_QUANTITY");
+    }
+
+    if (requestedQuantityByEquipment[equipment.id] !== undefined) {
+      throw new DomainError(
+        "Each equipment can only be selected once.",
+        400,
+        "DUPLICATE_EQUIPMENT",
+      );
+    }
+
+    requestedQuantityByEquipment[equipment.id] = equipment.quantity;
+  }
+
+  const availableQuantities = await getAvailableQuantity(input);
+
+  return availableQuantities.map((availableQuantity) => ({
+    ...availableQuantity,
+    available:
+      availableQuantity.availableQuantity >= requestedQuantityByEquipment[availableQuantity.id],
+  }));
 }
