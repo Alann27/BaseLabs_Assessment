@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-export type ReservationFormValues = z.infer<typeof ReservationFormSchema>;
+export type ReservationFormValues = z.input<typeof ReservationFormSchema>;
+export type ReservationSubmitValues = z.output<typeof ReservationFormSchema>;
 export type ReservationValues = z.infer<typeof ReservationSchema>;
 
 const requiredError = { error: "Required" };

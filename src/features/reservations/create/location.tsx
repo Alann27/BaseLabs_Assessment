@@ -25,6 +25,7 @@ export default function LocationSelect({ locationNameById, resetMutation }: Loca
         rules={{ required: "Required" }}
         render={({ field, fieldState }) => (
           <Autocomplete
+            id={"location"}
             isOptionEqualToValue={(option, value) => option === value}
             options={Object.keys(locationNameById)}
             getOptionLabel={(option) => locationNameById[option] || option}

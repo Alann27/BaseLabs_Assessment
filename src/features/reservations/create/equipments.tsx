@@ -71,7 +71,6 @@ export default function Equipments({
     ) || {};
 
   const addEquipmentRow = () => {
-    // @ts-expect-error appended rows start as an empty string, like the default row
     append({ id: "", quantity: "" });
   };
 
@@ -98,6 +97,7 @@ export default function Equipments({
                   rules={{ required: "Required" }}
                   render={({ field, formState }) => (
                     <Autocomplete
+                      id={`equipment-${index}`}
                       options={autocompleteOptions}
                       getOptionLabel={(option) => equipmentById[option]?.name || option}
                       isOptionEqualToValue={(option, value) => option === value}
@@ -111,6 +111,13 @@ export default function Equipments({
                           size={"small"}
                           fullWidth
                           placeholder={"Type to search equipment"}
+                          slotProps={{
+                            ...params.slotProps,
+                            htmlInput: {
+                              ...params.slotProps.htmlInput,
+                              "aria-label": `Equipment ${index + 1}`,
+                            },
+                          }}
                           error={!!formState.errors.equipments?.[index]?.id}
                           helperText={formState.errors.equipments?.[index]?.id?.message}
                         />
@@ -147,6 +154,9 @@ export default function Equipments({
                         }}
                         type={"number"}
                         placeholder={"Quantity"}
+                        slotProps={{
+                          htmlInput: { "aria-label": `Quantity for equipment ${index + 1}` },
+                        }}
                         size={"small"}
                         disabled={!location}
                         helperText={fieldState.error?.message}

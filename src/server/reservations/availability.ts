@@ -9,6 +9,7 @@ interface AvailabilityInput {
   }>;
   startAt: Date;
   endAt: Date;
+  excludeReservationId?: string;
 }
 
 interface AvailableQuantity {
@@ -50,6 +51,7 @@ export async function getAvailableQuantity(
         status: "CONFIRMED",
         startAt: { lt: input.endAt },
         endAt: { gt: input.startAt },
+        ...(input.excludeReservationId ? { id: { not: input.excludeReservationId } } : {}),
       },
       equipmentId: { in: equipmentIds },
     },

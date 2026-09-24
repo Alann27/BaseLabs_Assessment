@@ -16,11 +16,13 @@ export default function StatusSelect() {
       name={"status"}
       render={({ field, fieldState }) => (
         <Box>
-          <InputLabel sx={{ color: "black", mb: 1 }} htmlFor={"status"}>
+          <InputLabel id={"status-label"} sx={{ color: "black", mb: 1 }} htmlFor={"status"}>
             Status
           </InputLabel>
           <Select
             displayEmpty
+            id={"status"}
+            labelId={"status-label"}
             variant={"outlined"}
             {...field}
             sx={{ width: "100%", maxWidth: 300 }}

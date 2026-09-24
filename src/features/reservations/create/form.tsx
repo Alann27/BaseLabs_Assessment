@@ -17,20 +17,38 @@ import Equipments from "@/features/reservations/create/equipments";
 import LocationSelect from "@/features/reservations/create/location";
 import StatusSelect from "@/features/reservations/create/status";
 import { NoAvailabilityError } from "@/lib/no-availability-error";
-import { ReservationFormSchema, ReservationFormValues } from "@/schemas/create-reservation";
+import {
+  ReservationFormSchema,
+  ReservationFormValues,
+  ReservationSubmitValues,
+} from "@/schemas/create-reservation";
 
-interface CreateReservationFormProps {
+interface ReservationFormProps {
   locationNameById: Record<string, string>;
   equipmentsByLocation: Record<string, Array<{ id: string; name: string; totalQuantity: number }>>;
+  // Only present when editing: prefills the form and turns the submit into an update.
+  reservation?: {
+    id: string;
+    location: string;
+    startAt: string;
+    endAt: string;
+    status: "DRAFT" | "CONFIRMED";
+    equipments: Array<{ id: string; quantity: string }>;
+  };
 }
 
-export default function CreateReservationForm(props: CreateReservationFormProps) {
+export default function ReservationForm(props: ReservationFormProps) {
+  const reservationToEdit = props.reservation;
+
   const { status, isPending, isError, error, mutate, reset } = useMutation({
-    mutationFn: async (data: ReservationFormValues) => {
-      const response = await fetch("/api/reservations", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+    mutationFn: async (data: ReservationSubmitValues) => {
+      const response = await fetch(
+        reservationToEdit ? `/api/reservations/${reservationToEdit.id}` : "/api/reservations",
+        {
+          method: reservationToEdit ? "PUT" : "POST",
+          body: JSON.stringify(data),
+        },
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -50,19 +68,27 @@ export default function CreateReservationForm(props: CreateReservationFormProps)
     },
   });
 
-  const methods = useForm({
+  const methods = useForm<ReservationFormValues, unknown, ReservationSubmitValues>({
     resolver: zodResolver(ReservationFormSchema),
-    defaultValues: {
-      location: "",
-      equipments: [{ id: "", quantity: "" }],
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      status: "",
-    },
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore a blank form starts with an empty status so the select shows its placeholder
+    defaultValues: reservationToEdit
+      ? {
+          location: reservationToEdit.location,
+          startAt: new Date(reservationToEdit.startAt),
+          endAt: new Date(reservationToEdit.endAt),
+          equipments: reservationToEdit.equipments,
+          status: reservationToEdit.status,
+        }
+      : {
+          location: "",
+          equipments: [{ id: "", quantity: "" }],
+          status: "",
+        },
     reValidateMode: "onChange",
   });
 
-  const onSubmit = (data: ReservationFormValues) => {
+  const onSubmit = (data: ReservationSubmitValues) => {
     if (status === "pending" || status === "success") return;
 
     mutate(data);
@@ -84,7 +110,7 @@ export default function CreateReservationForm(props: CreateReservationFormProps)
       >
         <CircularProgress size={80} />
         <Typography variant={"h6"} sx={{ mt: 3 }}>
-          Creating reservation...
+          {reservationToEdit ? "Updating" : "Creating"} reservation...
         </Typography>
       </Card>
     );
@@ -146,7 +172,9 @@ export default function CreateReservationForm(props: CreateReservationFormProps)
         }}
       >
         <Check color={"success"} sx={{ fontSize: 80 }} />
-        <Typography variant={"h6"}>Reservation saved successfully!</Typography>
+        <Typography variant={"h6"}>
+          Reservation {reservationToEdit ? "updated" : "saved"} successfully!
+        </Typography>
         <Stack
           spacing={2}
           sx={{
@@ -161,15 +189,17 @@ export default function CreateReservationForm(props: CreateReservationFormProps)
           <Link href={"/"}>
             <Button variant={"outlined"}>Go Home</Button>
           </Link>
-          <Button
-            onClick={() => {
-              methods.reset();
-              reset();
-            }}
-            variant={"contained"}
-          >
-            Create New Reservation
-          </Button>
+          {!reservationToEdit && (
+            <Button
+              onClick={() => {
+                methods.reset();
+                reset();
+              }}
+              variant={"contained"}
+            >
+              Create New Reservation
+            </Button>
+          )}
         </Stack>
       </Card>
     );
@@ -211,7 +241,7 @@ export default function CreateReservationForm(props: CreateReservationFormProps)
             <Button variant={"outlined"}>Cancel</Button>
           </Link>
           <Button variant={"contained"} type={"submit"}>
-            Submit
+            {reservationToEdit ? "Save Changes" : "Submit"}
           </Button>
         </Stack>
       </Card>
