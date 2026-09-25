@@ -37,7 +37,7 @@ export default function Equipments({
   equipmentsWithNoAvailability,
   resetMutation,
 }: EquipmentsProps) {
-  const { control, watch } = useFormContext<ReservationFormValues>();
+  const { control, watch, formState } = useFormContext<ReservationFormValues>();
 
   const location = watch("location");
 
@@ -73,6 +73,8 @@ export default function Equipments({
   const addEquipmentRow = () => {
     append({ id: "", quantity: "" });
   };
+
+  const equipmentsError = formState.errors?.equipments?.root?.message
 
   return (
     <Box sx={{ width: "100%" }}>
@@ -191,6 +193,15 @@ export default function Equipments({
           );
         })}
       </Stack>
+      {equipmentsError && (
+        <Typography
+          variant={"caption"}
+          sx={{ width: "100%!important", ml: 2, fontWeight: "bold", mt: 0.5 }}
+          color={"error"}
+        >
+          {equipmentsError}
+        </Typography>
+      )}
     </Box>
   );
 }

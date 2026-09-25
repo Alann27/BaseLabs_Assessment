@@ -31,7 +31,14 @@ export const ReservationFormSchema = baseReservationFormSchema
           .transform((value) => parseInt(value, 10))
           .pipe(z.number().int().positive()),
       }),
-    ),
+    ).nonempty({ error: "At least one equipment is required"})
+      .refine((input) => {
+        const uniqueIds = new Set(input.map((item) => item.id));
+
+        return uniqueIds.size === input.length;
+      }, {
+        message: "Each equipment must be unique.",
+      })
   })
   .refine((input) => input.endAt > input.startAt, {
     message: "End date must be after the start date.",
@@ -47,7 +54,14 @@ export const ReservationSchema = baseReservationFormSchema
         id: z.string(requiredError).nonempty(requiredError),
         quantity: z.number().int().positive(),
       }),
-    ),
+    ).nonempty({ error: "At least one equipment is required"})
+      .refine((input) => {
+        const uniqueIds = new Set(input.map((item) => item.id));
+
+        return uniqueIds.size === input.length;
+      }, {
+        message: "Each equipment must be unique.",
+      }),
   })
   .refine((input) => input.endAt > input.startAt, {
     message: "End date must be after the start date.",
