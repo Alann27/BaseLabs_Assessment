@@ -21,6 +21,40 @@ interface AvailableQuantityWithAvailability extends AvailableQuantity {
   available: boolean;
 }
 
+interface GetPeakParam {
+  equipmentId: string
+  quantity: number
+  reservation: {
+    startAt: Date
+    endAt: Date
+  }
+}
+
+function getPeak(reservationsList: Array<GetPeakParam>) {
+  const eventsOfReservation = reservationsList.map(reservation => [
+    {
+      date: reservation.reservation.startAt,
+      quantity: reservation.quantity,
+    },
+    {
+      date: reservation.reservation.endAt,
+      quantity: -reservation.quantity,
+    }
+  ])
+    .flat()
+    .sort((a, b) => a.date.getTime() - b.date.getTime() || a.quantity - b.quantity)
+
+  let peak = 0, reserved = 0
+
+  for (const event of eventsOfReservation) {
+    reserved += event.quantity
+
+    peak = Math.max(peak, reserved)
+  }
+
+  return peak
+}
+
 export async function getAvailableQuantity(
   input: AvailabilityInput,
 ): Promise<Array<AvailableQuantity>> {
@@ -44,7 +78,7 @@ export async function getAvailableQuantity(
     );
   }
 
-  const reservations = await prisma.reservationItem.groupBy({
+  const reservations = await prisma.reservationItem.findMany({
     where: {
       reservation: {
         locationId: input.locationId,
@@ -55,25 +89,31 @@ export async function getAvailableQuantity(
       },
       equipmentId: { in: equipmentIds },
     },
-    by: ["equipmentId"],
-    _sum: {
+    select: {
+      equipmentId: true,
       quantity: true,
-    },
+      reservation: {
+        select: {
+          startAt: true,
+          endAt: true,
+        }
+      }
+    }
   });
 
-  const reservedEquipmentMap: Record<string, number> = reservations.reduce(
-    (map, reservation) => ({
-      ...map,
-      [reservation.equipmentId]: reservation?._sum?.quantity || 0,
-    }),
-    {},
-  );
+  const reservationsByEquipment: Record<string, typeof reservations> = reservations.reduce((map, item) => {
+    const currentArray = map[item.equipmentId] || []
+    currentArray.push(item)
+    map[item.equipmentId] = currentArray
+
+    return map
+  }, {} as Record<string, typeof reservations>)
 
   return equipmentQuantities.map((equipment) => ({
     id: equipment.id,
     availableQuantity: Math.max(
       0,
-      equipment.totalQuantity - (reservedEquipmentMap[equipment.id] || 0),
+      equipment.totalQuantity - getPeak(reservationsByEquipment[equipment.id] || []),
     ),
   }));
 }
